@@ -185,25 +185,11 @@ export const engagementApiService = {
   // Views
   recordView: async (blogId) => {
     try {
-      // Add username header if authenticated
-      const headers = {};
-      const token = localStorage.getItem("token");
-      if (token) {
-        // Extract username from token payload
-        try {
-          const payload = JSON.parse(atob(token.split(".")[1]));
-          headers["X-Username"] = payload.sub;
-        } catch (e) {
-          // ignore token parsing errors
-        }
-      }
-      await engagementApi.post(
-        `/public/blogs/${blogId}/views`,
-        {},
-        { headers }
-      );
+      // Views are public endpoints, no authentication required
+      // The backend will extract username from JWT token if available
+      await engagementApi.post(`/public/blogs/${blogId}/views`);
     } catch (_) {
-      // ignore
+      // ignore view recording errors
     }
   },
   getViewsCount: async (blogId) => {

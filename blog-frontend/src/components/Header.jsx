@@ -9,6 +9,8 @@ import {
   Home,
   Search,
   Users,
+  BookOpen,
+  PlusCircle,
 } from "lucide-react";
 
 const Header = () => {
@@ -26,28 +28,37 @@ const Header = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo and Navigation */}
           <div className="flex items-center space-x-8">
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">B</span>
+            <Link to="/" className="flex items-center space-x-3 group">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+                <span className="text-white font-bold text-xl">BP</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">BlogSpot</span>
+              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">BlogPress</span>
             </Link>
 
-            <nav className="hidden md:flex space-x-6">
+            <nav className="hidden md:flex space-x-2">
               <Link
                 to="/"
-                className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-blue-50"
               >
-                <Home size={16} />
+                <Home size={18} />
                 <span>Home</span>
               </Link>
               <Link
                 to="/blogs"
-                className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-blue-50"
               >
-                <Search size={16} />
+                <BookOpen size={18} />
                 <span>Blogs</span>
               </Link>
+              {isAuthenticated && (
+                <Link
+                  to="/create-blog"
+                  className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-lg hover:scale-105"
+                >
+                  <PlusCircle size={18} />
+                  <span>Write</span>
+                </Link>
+              )}
             </nav>
           </div>
 
@@ -55,28 +66,20 @@ const Header = () => {
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
               <>
-                <Link
-                  to="/create-blog"
-                  className="flex items-center space-x-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus size={16} />
-                  <span>Write</span>
-                </Link>
-
                 {isAdmin && (
                   <Link
                     to="/admin"
-                    className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                    className="flex items-center space-x-2 text-gray-600 hover:text-purple-600 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-purple-50"
                   >
-                    <Users size={16} />
+                    <Users size={18} />
                     <span>Admin</span>
                   </Link>
                 )}
 
                 <div className="relative group">
-                  <button className="flex items-center space-x-2 text-gray-700 hover:text-gray-900">
-                    <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                      <User size={16} />
+                  <button className="flex items-center space-x-3 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200">
+                    <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center shadow-md">
+                      <User size={18} className="text-white" />
                     </div>
                     <span className="hidden md:block text-sm font-medium">
                       {user?.username}
@@ -109,16 +112,16 @@ const Header = () => {
                 </div>
               </>
             ) : (
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
                 <Link
                   to="/login"
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  className="text-gray-600 hover:text-blue-600 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-blue-50"
                 >
                   Login
                 </Link>
                 <Link
                   to="/register"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:shadow-lg transition-all duration-200 hover:scale-105 font-medium"
                 >
                   Sign Up
                 </Link>

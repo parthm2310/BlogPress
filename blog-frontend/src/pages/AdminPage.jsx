@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { userApiService, blogApiService } from "../services/api";
 import { Users, FileText, Eye, Edit, Trash2, Plus } from "lucide-react";
@@ -6,6 +7,7 @@ import Header from "../components/Header";
 
 const AdminPage = () => {
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("users");
   const [users, setUsers] = useState([]);
   const [blogs, setBlogs] = useState([]);
@@ -441,18 +443,14 @@ const AdminPage = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
                               <button
-                                onClick={() =>
-                                  window.open(`/blogs/${blog.id}`, "_blank")
-                                }
+                                onClick={() => navigate(`/blogs/${blog.id}`)}
                                 className="text-blue-600 hover:text-blue-900"
                                 title="View"
                               >
                                 <Eye size={16} />
                               </button>
                               <button
-                                onClick={() =>
-                                  window.open(`/edit-blog/${blog.id}`, "_blank")
-                                }
+                                onClick={() => navigate(`/edit-blog/${blog.id}`)}
                                 className="text-green-600 hover:text-green-900"
                                 title="Edit"
                               >

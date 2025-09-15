@@ -37,9 +37,16 @@ public class EngagementController {
 
     @PostMapping("/blogs/{blogId}/likes/toggle")
     public ResponseEntity<Boolean> toggleLike(@PathVariable Long blogId) {
-        String username = extractUsername();
-        boolean isLiked = engagementService.toggleLike(blogId, username);
-        return ResponseEntity.ok(isLiked);
+        try {
+            String username = extractUsername();
+            System.out.println("DEBUG: Toggle like for blog " + blogId + " by user " + username);
+            boolean isLiked = engagementService.toggleLike(blogId, username);
+            return ResponseEntity.ok(isLiked);
+        } catch (Exception e) {
+            System.err.println("ERROR: Failed to toggle like: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @GetMapping("/blogs/{blogId}/likes/status")
@@ -73,9 +80,16 @@ public class EngagementController {
     // Comments
     @PostMapping("/blogs/{blogId}/comments")
     public ResponseEntity<CommentResponse> addComment(@PathVariable Long blogId, @Valid @RequestBody CreateCommentRequest request) {
-        String username = extractUsername();
-        request.setBlogId(blogId);
-        return ResponseEntity.ok(engagementService.addComment(username, request));
+        try {
+            String username = extractUsername();
+            System.out.println("DEBUG: Add comment for blog " + blogId + " by user " + username);
+            request.setBlogId(blogId);
+            return ResponseEntity.ok(engagementService.addComment(username, request));
+        } catch (Exception e) {
+            System.err.println("ERROR: Failed to add comment: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @PutMapping("/blogs/{blogId}/comments/{commentId}")
