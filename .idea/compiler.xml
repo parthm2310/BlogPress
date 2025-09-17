@@ -16,6 +16,7 @@
         <processorPath useClasspath="false">
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar" />
         </processorPath>
+        <module name="config-server" />
         <module name="user-service" />
         <module name="engagement-service" />
         <module name="blog-service" />
@@ -32,6 +33,7 @@
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="api-gateway" options="-parameters" />
       <module name="blog-service" options="-parameters" />
+      <module name="config-server" options="-parameters" />
       <module name="engagement-service" options="-parameters" />
       <module name="eureka-server" options="-parameters" />
       <module name="untitled" options="-parameters" />
