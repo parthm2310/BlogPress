@@ -34,6 +34,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/users/register", "/api/users/register/admin", "/api/users/login").permitAll()
+                        // Allow internal endpoints for service-to-service calls (secured via network/gateway)
+                        .requestMatchers("/api/users/internal/**").permitAll()
+                        // Public blog endpoints can remain authenticated by default
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

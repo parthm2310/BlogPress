@@ -22,6 +22,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import lombok.Data;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -31,6 +36,7 @@ public class EngagementServiceImpl implements EngagementService {
     private final ViewRepository viewRepository;
     private final CommentRepository commentRepository;
     private final KafkaTemplate<String, EngagementMilestoneEvent> kafkaTemplate;
+    private final BlogServiceClient blogServiceClient;
 
     // Likes
     @Override
@@ -108,6 +114,8 @@ public class EngagementServiceImpl implements EngagementService {
             .ipAddress(ipAddress)
             .build();
         viewRepository.save(view);
+        // Check for milestone after recording the view
+        checkAndPublishMilestone(blogId, "VIEWS");
     }
 
     @Override
@@ -131,6 +139,8 @@ public class EngagementServiceImpl implements EngagementService {
             .parent(parent)
             .build();
         CommentEntity saved = commentRepository.save(entity);
+        // Check for milestone after saving the comment
+        checkAndPublishMilestone(request.getBlogId(), "COMMENTS");
         return toResponse(saved, true);
     }
 
@@ -209,22 +219,38 @@ public class EngagementServiceImpl implements EngagementService {
                 count = getViewCount(blogId);
             }
 
-            // Check if it's a milestone (10, 50, 100, 500, 1000, etc.)
+            log.debug("Milestone check for blog {} type {} count {}", blogId, milestoneType, count);
+
+            // Check if it's a milestone (5, 10, 50, 100, 500, 1000, etc.)
             if (isMilestone(count)) {
-                // For now, we'll use a placeholder authorId since we don't have access to blog-service
-                // In a real implementation, you would call blog-service to get the authorId
-                String authorId = "unknown"; // This should be fetched from blog-service
-                
+                String authorId = null;
+                String blogTitle = null;
+                try {
+                    // Best effort: fetch author id, but do not block publishing if unavailable
+                    BlogDetails blog = blogServiceClient.getBlogPublic(blogId);
+                    if (blog != null) {
+                        if (blog.authorId != null) {
+                            authorId = blog.authorId.toString();
+                        }
+                        blogTitle = blog.title;
+                    }
+                } catch (Exception ex) {
+                    log.warn("Could not fetch blog details for {} during milestone publish: {}", blogId, ex.getMessage());
+                }
+
                 EngagementMilestoneEvent event = new EngagementMilestoneEvent(
                         blogId.toString(),
                         authorId,
+                        blogTitle,
                         milestoneType,
                         (int) count
                 );
-                
+
                 kafkaTemplate.send("engagement-milestones", event);
-                log.info("Published engagement milestone event for blog: {} - {}: {}", 
-                        blogId, milestoneType, count);
+                log.info("Published engagement milestone event for blog: {} - {}: {} (authorId={}, title={})", 
+                        blogId, milestoneType, count, authorId, blogTitle);
+            } else {
+                log.debug("Not a milestone for blog {} type {} at count {}", blogId, milestoneType, count);
             }
         } catch (Exception e) {
             log.error("Failed to check/publish milestone for blog: {}. Error: {}", 
@@ -233,12 +259,25 @@ public class EngagementServiceImpl implements EngagementService {
         }
     }
 
+    @FeignClient(name = "blog-service")
+    interface BlogServiceClient {
+        @GetMapping("/api/blogs/internal/{id}")
+        BlogDetails getBlogPublic(@PathVariable("id") Long id);
+    }
+
+    @Data
+    static class BlogDetails {
+        private Long id;
+        private String title;
+        private Long authorId;
+    }
+
     /**
      * Checks if a count represents a milestone.
      * Milestones are: 10, 50, 100, 500, 1000, 5000, 10000, etc.
      */
     private boolean isMilestone(long count) {
-        return count == 10 || count == 50 || count == 100 || count == 500 || 
+        return count == 5 || count == 10 || count == 50 || count == 100 || count == 500 || 
                count == 1000 || count == 5000 || count == 10000 || 
                (count > 10000 && count % 10000 == 0);
     }

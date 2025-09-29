@@ -101,9 +101,26 @@ public class UserController {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
+    // Internal endpoint: list all user emails for broadcast (secured at gateway/network level)
+    @GetMapping("/internal/emails")
+    public ResponseEntity<List<String>> getAllUserEmailsInternal() {
+        return ResponseEntity.ok(userService.getAllUserEmails());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserProfileDto> getUserById(@PathVariable Long id) {
+        try {
+            UserProfileDto userProfile = userService.getUserProfile(id);
+            return ResponseEntity.ok(userProfile);
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    // Internal endpoint: fetch user profile by id (author lookup for notifications)
+    @GetMapping("/internal/{id}")
+    public ResponseEntity<UserProfileDto> getUserByIdInternal(@PathVariable Long id) {
         try {
             UserProfileDto userProfile = userService.getUserProfile(id);
             return ResponseEntity.ok(userProfile);

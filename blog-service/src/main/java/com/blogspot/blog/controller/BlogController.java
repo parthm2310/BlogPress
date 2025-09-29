@@ -18,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+import com.blogspot.blog.dto.BlogSummaryInternalDto;
 
 @RestController
 @RequestMapping("/api/blogs")
@@ -90,6 +91,25 @@ public class BlogController {
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
             log.error("Error fetching published blog: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/internal/{id}")
+    public ResponseEntity<BlogSummaryInternalDto> getBlogSummaryInternal(@PathVariable Long id) {
+        try {
+            var blog = blogService.findAnyById(id);
+            if (blog == null) {
+                return ResponseEntity.notFound().build();
+            }
+            BlogSummaryInternalDto dto = BlogSummaryInternalDto.builder()
+                    .id(blog.getId())
+                    .title(blog.getTitle())
+                    .authorId(blog.getAuthorId())
+                    .build();
+            return ResponseEntity.ok(dto);
+        } catch (Exception e) {
+            log.error("Error fetching internal blog summary: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

@@ -123,6 +123,13 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    public List<String> getAllUserEmails() {
+        return userRepository.findAll()
+                .stream()
+                .map(User::getEmail)
+                .collect(Collectors.toList());
+    }
+
     public UserProfileDto updateUser(Long userId, UserProfileDto userProfileDto) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));

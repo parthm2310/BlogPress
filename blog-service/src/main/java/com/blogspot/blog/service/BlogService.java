@@ -43,6 +43,15 @@ public class BlogService {
         }
         return "Bearer " + cleanToken;
     }
+    @Transactional(readOnly = true)
+    public Blog findAnyById(Long id) {
+        try {
+            return blogRepository.findById(id).orElse(null);
+        } catch (Exception e) {
+            log.error("Error fetching blog by id {}: {}", id, e.getMessage());
+            return null;
+        }
+    }
 
     @Transactional
     public BlogResponseDto createBlog(BlogCreateDto blogCreateDto, String token) {

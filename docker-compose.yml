@@ -1,0 +1,277 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: blogpress-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: blogpress
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Apache Kafka with KRaft (no Zookeeper)
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: blogpress-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode configuration
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      # Log configuration
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      timeout: 20s
+      retries: 10
+
+  # Config Server
+  config-server:
+    build:
+      context: ./config-server
+      dockerfile: Dockerfile
+    container_name: blogpress-config-server
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+    depends_on:
+      - eureka-server
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Eureka Server
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    container_name: blogpress-eureka-server
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: blogpress-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_INSTANCE_HOSTNAME: api-gateway
+    depends_on:
+      - eureka-server
+      - config-server
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # User Service
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: blogpress-user-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_INSTANCE_HOSTNAME: user-service
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/user_service_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+      CONFIG_SERVER_URI: http://config-server:8888
+    depends_on:
+      - mysql
+      - eureka-server
+      - config-server
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Blog Service
+  blog-service:
+    build:
+      context: ./blog-service
+      dockerfile: Dockerfile
+    container_name: blogpress-blog-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_INSTANCE_HOSTNAME: blog-service
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/blog_service_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+      CONFIG_SERVER_URI: http://config-server:8888
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      - mysql
+      - kafka
+      - eureka-server
+      - config-server
+      - user-service
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Engagement Service
+  engagement-service:
+    build:
+      context: ./engagement-service
+      dockerfile: Dockerfile
+    container_name: blogpress-engagement-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_INSTANCE_HOSTNAME: engagement-service
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/engagement_service_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+      CONFIG_SERVER_URI: http://config-server:8888
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      - mysql
+      - kafka
+      - eureka-server
+      - config-server
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: blogpress-notification-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_INSTANCE_HOSTNAME: notification-service
+      CONFIG_SERVER_URI: http://config-server:8888
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # Email configuration (set these in .env file)
+      MAIL_USERNAME: ${MAIL_USERNAME:-your-email@gmail.com}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-your-app-password}
+      MAIL_HOST: smtp.gmail.com
+      MAIL_PORT: 587
+      MAIL_PROPERTIES_MAIL_SMTP_AUTH: true
+      MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: true
+    depends_on:
+      - kafka
+      - eureka-server
+      - config-server
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Frontend Application
+  blog-frontend:
+    build:
+      context: ./blog-frontend
+      dockerfile: Dockerfile
+    container_name: blogpress-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8084
+    depends_on:
+      - api-gateway
+    networks:
+      - blogpress-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  mysql_data:
+  kafka_data:
+
+networks:
+  blogpress-network:
+    driver: bridge

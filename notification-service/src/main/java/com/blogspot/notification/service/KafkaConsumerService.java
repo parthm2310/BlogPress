@@ -3,6 +3,9 @@ package com.blogspot.notification.service;
 import com.blogspot.notification.dto.EngagementMilestoneEvent;
 import com.blogspot.notification.dto.NewBlogPostEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -21,6 +24,8 @@ public class KafkaConsumerService {
 
     private final EmailService emailService;
     private final ObjectMapper objectMapper;
+    private final UserServiceClient userServiceClient;
+    private final BlogServiceClient blogServiceClient;
 
     /**
      * Kafka listener for new blog post events.
@@ -37,17 +42,14 @@ public class KafkaConsumerService {
             log.info("Processing new blog post event for blog: {} by author: {}", 
                     event.blogId(), event.authorId());
 
-            // TODO: In a real implementation, you would:
-            // 1. Fetch the author's email and name from the user-service
-            // 2. Fetch the list of followers from the user-service
-            // 3. Send notifications to all followers
-            
-            // For now, we'll simulate sending a notification
-            // In production, you'd call user-service to get author details and followers
-            String authorEmail = "author@example.com"; // This should come from user-service
-            String authorName = "Blog Author"; // This should come from user-service
-            
-            emailService.sendNewBlogNotification(authorEmail, event.blogTitle(), authorName);
+            // Fetch author details
+            UserProfile author = userServiceClient.getUserByIdInternal(Long.parseLong(event.authorId()));
+
+            // Broadcast: fetch all user emails
+            Iterable<String> allEmails = userServiceClient.getAllEmailsInternal();
+            String subject = emailService.buildNewBlogSubject(event.blogTitle());
+            String body = emailService.buildNewBlogBody(event.blogTitle(), author.getFirstName() != null ? author.getFirstName() : author.getUsername());
+            emailService.sendBulkSimpleMail(allEmails, subject, body);
             
             log.info("Successfully processed new blog post event for blog: {}", event.blogId());
             
@@ -72,23 +74,40 @@ public class KafkaConsumerService {
             log.info("Processing engagement milestone event for blog: {} - {}: {}", 
                     event.blogId(), event.milestoneType(), event.count());
 
-            // TODO: In a real implementation, you would:
-            // 1. Fetch the author's email and name from the user-service
-            // 2. Fetch the blog title from the blog-service
-            // 3. Send congratulatory email to the author
-            
-            // For now, we'll simulate sending a notification
-            // In production, you'd call user-service and blog-service to get details
-            String authorEmail = "author@example.com"; // This should come from user-service
-            String authorName = "Blog Author"; // This should come from user-service
-            String blogTitle = "Sample Blog Title"; // This should come from blog-service
-            
+            String authorIdStr = event.authorId();
+            String title = event.blogTitle();
+
+            if (authorIdStr == null || title == null) {
+                try {
+                    BlogSummary blog = blogServiceClient.getBlogInternal(Long.parseLong(event.blogId()));
+                    if (blog != null) {
+                        if (authorIdStr == null && blog.getAuthorId() != null) {
+                            authorIdStr = blog.getAuthorId().toString();
+                        }
+                        if (title == null) {
+                            title = blog.getTitle();
+                        }
+                    }
+                } catch (Exception ex) {
+                    log.warn("Fallback fetch failed for blogId={}: {}", event.blogId(), ex.getMessage());
+                }
+            }
+
+            if (authorIdStr == null || title == null) {
+                log.warn("Skipping milestone email for blogId={} due to missing data after fallback (authorId={}, blogTitle={})", 
+                        event.blogId(), authorIdStr, title);
+                return;
+            }
+
+            Long authorId = Long.parseLong(authorIdStr);
+            UserProfile author = userServiceClient.getUserByIdInternal(authorId);
+
             emailService.sendMilestoneNotification(
-                    authorEmail, 
-                    blogTitle, 
-                    event.milestoneType(), 
-                    event.count(), 
-                    authorName
+                    author.getEmail(),
+                    title,
+                    event.milestoneType(),
+                    event.count(),
+                    author.getFirstName() != null ? author.getFirstName() : author.getUsername()
             );
             
             log.info("Successfully processed engagement milestone event for blog: {}", event.blogId());
@@ -98,4 +117,35 @@ public class KafkaConsumerService {
             // In production, you might want to implement retry logic or dead letter queue
         }
     }
+}
+
+@FeignClient(name = "user-service")
+interface UserServiceClient {
+    @GetMapping("/api/users/internal/emails")
+    Iterable<String> getAllEmailsInternal();
+
+    @GetMapping("/api/users/internal/{id}")
+    UserProfile getUserByIdInternal(@PathVariable("id") Long id);
+}
+
+@FeignClient(name = "blog-service")
+interface BlogServiceClient {
+    @GetMapping("/api/blogs/internal/{id}")
+    BlogSummary getBlogInternal(@PathVariable("id") Long id);
+}
+
+@lombok.Data
+class UserProfile {
+    private Long id;
+    private String username;
+    private String email;
+    private String firstName;
+    private String lastName;
+}
+
+@lombok.Data
+class BlogSummary {
+    private Long id;
+    private String title;
+    private Long authorId;
 }

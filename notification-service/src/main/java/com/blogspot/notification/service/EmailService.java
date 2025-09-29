@@ -47,6 +47,16 @@ public class EmailService {
         }
     }
 
+    public void sendBulkSimpleMail(Iterable<String> recipients, String subject, String body) {
+        for (String email : recipients) {
+            try {
+                sendSimpleMail(email, subject, body);
+            } catch (RuntimeException ex) {
+                log.warn("Skipping failed email to {}: {}", email, ex.getMessage());
+            }
+        }
+    }
+
     /**
      * Sends a new blog post notification to followers.
      *
@@ -54,9 +64,12 @@ public class EmailService {
      * @param blogTitle    title of the new blog post
      * @param authorName   name of the blog author
      */
-    public void sendNewBlogNotification(String authorEmail, String blogTitle, String authorName) {
-        String subject = "New Blog Post: " + blogTitle;
-        String body = String.format(
+    public String buildNewBlogSubject(String blogTitle) {
+        return "New Blog Post: " + blogTitle;
+    }
+
+    public String buildNewBlogBody(String blogTitle, String authorName) {
+        return String.format(
                 "Hello,\n\n" +
                 "A new blog post has been published by %s:\n\n" +
                 "Title: %s\n\n" +
@@ -65,8 +78,6 @@ public class EmailService {
                 "BlogPress Team",
                 authorName, blogTitle
         );
-        
-        sendSimpleMail(authorEmail, subject, body);
     }
 
     /**

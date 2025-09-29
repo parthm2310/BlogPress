@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record EngagementMilestoneEvent(
         @JsonProperty("blogId") String blogId,
         @JsonProperty("authorId") String authorId,
+        @JsonProperty("blogTitle") String blogTitle,
         @JsonProperty("milestoneType") String milestoneType,
         @JsonProperty("count") int count
 ) {
